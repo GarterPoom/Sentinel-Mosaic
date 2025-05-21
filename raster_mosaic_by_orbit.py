@@ -52,24 +52,33 @@ def main():
     raster_files = glob.glob(os.path.join(root_dir, '*.tif')) + glob.glob(os.path.join(root_dir, '*.tiff'))
     logger.info(f"Found {len(raster_files)} raster files to process")
 
+    # Regex to extract date and orbit ID
+    orbit_date_pattern = re.compile(r'_(\d{8})_R(\d{3})_')
+
+    # Group files by (date, orbit ID)
     orbit_groups = defaultdict(list)
-    orbit_pattern = re.compile(r'_R(\d{3})_')
 
     for f in raster_files:
-        match = orbit_pattern.search(os.path.basename(f))
+        basename = os.path.basename(f)
+        match = orbit_date_pattern.search(os.path.basename(f))
         if match:
-            orbit_id = f"R{match.group(1)}"
-            orbit_groups[orbit_id].append(f)
+            date_str = match.group(1)  # e.g., 20250316
+            orbit_id = f"R{match.group(2)}" # e.g., R061
+            key = (date_str, orbit_id)
+            orbit_groups[key].append(f)
 
     if not orbit_groups:
-        logger.error("No valid orbit IDs found in filenames.")
+        logger.error("No valid orbit IDs and dates found in filenames.")
         return
 
-    for orbit_id, files in orbit_groups.items():
-        logger.info(f"\nProcessing Orbit {orbit_id} with {len(files)} files...")
+    for (date_str, orbit_id), files in orbit_groups.items():
+        logger.info(f"\nProcessing Orbit {orbit_id} on {date_str} with {len(files)} files...")
+
         orbit_dir = os.path.join(output_dir, orbit_id)
         os.makedirs(orbit_dir, exist_ok=True)
-        final_output_path = os.path.join(output_dir, f"{orbit_id}_Mosaic.tif")
+        
+        # Output file: yyyymmdd_orbitID_Mosaic.tif
+        final_output_path = os.path.join(output_dir, f"{date_str}_{orbit_id}_Mosaic.tif")
 
         target_epsg, x_res, y_res = analyze_rasters(files)
 
