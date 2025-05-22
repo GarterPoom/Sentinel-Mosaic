@@ -39,7 +39,7 @@ def analyze_rasters(files):
         logger.warning("No projections found. Defaulting to EPSG:4326")
         target_epsg = "EPSG:4326"
     else:
-        target_epsg = f"EPSG:{max(proj_counts.items(), key=lambda x: x[1])[0]}"
+        target_epsg = "EPSG:32647" # Use EPSG:32647 as default which is WGS84 UTM Zone 47 North (UTM Zone 47N) Coverage Thailand.
 
     # Average resolution - check if lists are empty to avoid ZeroDivisionError
     if not x_res_list or not y_res_list:
