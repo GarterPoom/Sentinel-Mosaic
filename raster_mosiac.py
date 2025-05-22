@@ -41,9 +41,12 @@ def analyze_rasters(files):
     else:
         target_epsg = f"EPSG:{max(proj_counts.items(), key=lambda x: x[1])[0]}"
 
-    # Average resolution
-    avg_x_res = sum(x_res_list) / len(x_res_list)
-    avg_y_res = sum(y_res_list) / len(y_res_list)
+    # Average resolution - check if lists are empty to avoid ZeroDivisionError
+    if not x_res_list or not y_res_list:
+        logger.error("Could not determine average resolution from any input files.")
+        return target_epsg, None, None # Indicate failure to calculate resolution
+    avg_x_res = sum(x_res_list) / float(len(x_res_list)) # Use float for division
+    avg_y_res = sum(y_res_list) / float(len(y_res_list)) # Use float for division
 
     logger.info(f"Target EPSG: {target_epsg}, Avg Res: {avg_x_res}, {avg_y_res}")
     return target_epsg, avg_x_res, avg_y_res
@@ -52,7 +55,7 @@ def main():
     # Configure input and output directories/paths
     root_dir = 'Raster_Resample'
     output_dir = 'Raster_Mosaic'
-    final_output_path = os.path.join(output_dir, 'Mosaic.tif')
+    final_output_path = os.path.join(output_dir, '20250221_25_Mosaic.tif')
 
     os.makedirs(output_dir, exist_ok=True)
 
@@ -62,6 +65,11 @@ def main():
 
     # Analyze rasters
     target_epsg, x_res, y_res = analyze_rasters(raster_files)
+    if x_res is None or y_res is None:
+        logger.error("Failed to determine average resolution from input rasters. Cannot proceed.")
+        # Attempt to clean up output directory if it was created and is empty
+        if not os.listdir(output_dir): os.rmdir(output_dir)
+        exit(1)
 
     # Reproject all rasters
     all_reprojected = []
@@ -69,23 +77,37 @@ def main():
         base_name = os.path.basename(raster_file)
         reprojected_path = os.path.join(output_dir, f"reproj_{i}_{base_name}")
 
-        logger.info(f"Reprojecting {base_name} to {target_epsg} with aligned pixels")
-        gdal.Warp(
-            reprojected_path,
-            raster_file,
-            options=gdal.WarpOptions(
-                dstSRS=target_epsg,
-                xRes=x_res,
-                yRes=y_res,
-                targetAlignedPixels=True,
-                resampleAlg='near',
-                srcNodata=0,
-                dstNodata=0,
-                outputType=gdal.GDT_UInt16,
-                creationOptions=['TILED=YES', 'COMPRESS=LZW', 'BIGTIFF=YES']
+        try:
+            logger.info(f"Reprojecting {base_name} to {target_epsg} with resolution {x_res}, {y_res} and aligned pixels")
+            warp_options = gdal.WarpOptions(
+                    dstSRS=target_epsg,
+                    xRes=x_res,
+                    yRes=y_res,
+                    targetAlignedPixels=True,
+                    resampleAlg='near',
+                    srcNodata=0, # Consider making this configurable or auto-detected if possible
+                    dstNodata=0, # Consider making this configurable
+                    outputType=gdal.GDT_UInt16,
+                    creationOptions=['TILED=YES', 'COMPRESS=LZW', 'BIGTIFF=YES'],
+                    # Adding error handling for GDAL internal errors
+                    errorThreshold=0.0 # Default is 0.125, 0.0 means exact reprojection
+                )
+            ds = gdal.Warp(
+                reprojected_path,
+                raster_file,
+                options=warp_options
             )
-        )
-        all_reprojected.append(reprojected_path)
+            if ds is None: # Should not happen if an exception is raised, but good for robustness
+                logger.error(f"gdal.Warp failed for {raster_file} and returned None, but did not raise an exception.")
+            else:
+                all_reprojected.append(reprojected_path)
+            ds = None # Release dataset
+        except Exception as e:
+            logger.error(f"Failed to reproject {raster_file}: {e}")
+            # Optionally, include traceback for detailed debugging:
+            # import traceback
+            # logger.error(f"Traceback: {traceback.format_exc()}")
+            continue # Skip to the next file
 
     if not all_reprojected:
         logger.error("No rasters were successfully reprojected!")
