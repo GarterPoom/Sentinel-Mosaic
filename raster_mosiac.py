@@ -52,7 +52,7 @@ def main():
     # Configure input and output directories/paths
     root_dir = 'Raster_Resample'
     output_dir = 'Raster_Mosaic'
-    final_output_path = os.path.join(output_dir, '20250323_27_Mosaic.tif')
+    final_output_path = os.path.join(output_dir, 'Mosaic.tif')
 
     os.makedirs(output_dir, exist_ok=True)
 
@@ -81,6 +81,7 @@ def main():
                 resampleAlg='near',
                 srcNodata=0,
                 dstNodata=0,
+                outputType=gdal.GDT_UInt16,
                 creationOptions=['TILED=YES', 'COMPRESS=LZW', 'BIGTIFF=YES']
             )
         )
