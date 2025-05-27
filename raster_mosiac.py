@@ -51,7 +51,7 @@ def analyze_rasters(files):
     logger.info(f"Target EPSG: {target_epsg}, Avg Res: {avg_x_res}, {avg_y_res}")
     return target_epsg, avg_x_res, avg_y_res
 
-def build_overviews(filepath, overview_levels=[2, 4, 8, 16, 32], resampling_method='average'):
+def build_overviews(filepath, overview_levels=[2, 4, 8, 16, 32], resampling_method='nearest'):
     """
     Builds raster pyramid overviews for a given GeoTIFF file.
 
@@ -110,7 +110,7 @@ def main():
                             dstSRS=target_epsg,
                             xRes=x_res,
                             yRes=y_res,
-                            targetAlignedPixels=True,
+                            targetAlignedPixels=True, # Align pixels
                             resampleAlg='near',
                             srcNodata=0, # Consider making this configurable or auto-detected if possible
                             dstNodata=0, # Consider making this configurable
