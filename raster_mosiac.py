@@ -51,11 +51,42 @@ def analyze_rasters(files):
     logger.info(f"Target EPSG: {target_epsg}, Avg Res: {avg_x_res}, {avg_y_res}")
     return target_epsg, avg_x_res, avg_y_res
 
+def build_overviews(filepath, overview_levels=[2, 4, 8, 16, 32], resampling_method='average'):
+    """
+    Builds raster pyramid overviews for a given GeoTIFF file.
+
+    Args:
+        filepath (str): Path to the GeoTIFF file.
+        overview_levels (list): List of integers representing the downsampling factors
+                                for each overview level. Default is [2, 4, 8, 16, 32].
+        resampling_method (str): Resampling method to use for overview creation.
+                                 Common options include 'average', 'nearest', 'cubic',
+                                 'lanczos'. Default is 'average'.
+    """
+    logger.info(f"Building overviews for {filepath} using levels {overview_levels} with {resampling_method} resampling...")
+    try:
+        ds = gdal.Open(filepath, gdal.GA_Update)
+        if ds is None:
+            logger.error(f"Cannot open {filepath} to build overviews.")
+            return
+
+        # Build overviews
+        ds.BuildOverviews(resampling_method, overview_levels)
+        ds = None # Close the dataset to flush changes
+
+        logger.info(f"Successfully built overviews for {filepath}")
+    except Exception as e:
+        logger.error(f"Failed to build overviews for {filepath}: {e}")
+
 def main():
     # Configure input and output directories/paths
     root_dir = 'Raster_Resample'
     output_dir = 'Raster_Mosaic'
+<<<<<<< HEAD
     final_output_path = os.path.join(output_dir, '202501_LANDSAT_9_Mosaic.tif')
+=======
+    final_output_path = os.path.join(output_dir, 'Mosaic.tif')
+>>>>>>> 04feb363226fab747fbea321b89edf2c7054fb2e
 
     os.makedirs(output_dir, exist_ok=True)
 
@@ -80,18 +111,18 @@ def main():
         try:
             logger.info(f"Reprojecting {base_name} to {target_epsg} with resolution {x_res}, {y_res} and aligned pixels")
             warp_options = gdal.WarpOptions(
-                    dstSRS=target_epsg,
-                    xRes=x_res,
-                    yRes=y_res,
-                    targetAlignedPixels=True,
-                    resampleAlg='near',
-                    srcNodata=0, # Consider making this configurable or auto-detected if possible
-                    dstNodata=0, # Consider making this configurable
-                    outputType=gdal.GDT_UInt16,
-                    creationOptions=['TILED=YES', 'COMPRESS=LZW', 'BIGTIFF=YES'],
-                    # Adding error handling for GDAL internal errors
-                    errorThreshold=0.0 # Default is 0.125, 0.0 means exact reprojection
-                )
+                            dstSRS=target_epsg,
+                            xRes=x_res,
+                            yRes=y_res,
+                            targetAlignedPixels=True,
+                            resampleAlg='near',
+                            srcNodata=0, # Consider making this configurable or auto-detected if possible
+                            dstNodata=0, # Consider making this configurable
+                            outputType=gdal.GDT_UInt16,
+                            creationOptions=['TILED=YES', 'COMPRESS=LZW', 'BIGTIFF=YES'],
+                            # Adding error handling for GDAL internal errors
+                            errorThreshold=0.0 # Default is 0.125, 0.0 means exact reprojection
+                        )
             ds = gdal.Warp(
                 reprojected_path,
                 raster_file,
@@ -148,6 +179,9 @@ def main():
         )
     )
     logger.info(f"Final mosaic saved to: {final_output_path}")
+
+    # Build overviews for the final mosaic
+    build_overviews(final_output_path)
 
     # Clean up
     if os.path.exists(final_output_path):
