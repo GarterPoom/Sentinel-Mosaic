@@ -16,33 +16,57 @@ def analyze_rasters(files):
     y_res_list = []
 
     for f in files:
-        ds = gdal.Open(f)
-        if ds is None:
-            logger.warning(f"Cannot open {f} for analysis")
+        try:
+            ds = gdal.Open(f)
+            if ds is None:
+                logger.warning(f"Cannot open {f} for analysis. Skipping this file.")
+                continue
+
+            projection_wkt = ds.GetProjection()
+            if not projection_wkt:
+                logger.debug(f"No projection information found in {f}.")
+            else:
+                srs = osr.SpatialReference()
+                srs.ImportFromWkt(projection_wkt)
+                if srs.IsProjected():
+                    epsg_code = srs.GetAuthorityCode(None)
+                    if epsg_code:
+                        proj_counts[epsg_code] += 1
+                    else:
+                        logger.debug(f"Could not get Authority Code for projection in {f}")
+
+            gt = ds.GetGeoTransform()
+            if gt and len(gt) == 6 and gt[1] != 0 and gt[5] != 0: # Ensure valid transform and non-zero resolution
+                x_res_list.append(abs(gt[1]))
+                y_res_list.append(abs(gt[5]))
+            else:
+                logger.warning(f"Invalid, missing, or zero-resolution geotransform for {f}. Skipping resolution analysis for this file.")
+            ds = None # Close dataset
+        except RuntimeError as e:
+            logger.warning(f"GDAL RuntimeError while analyzing {f}: {e}. Skipping this file.")
+            continue
+        except Exception as e:
+            logger.warning(f"Unexpected error while analyzing {f}: {e}. Skipping this file.")
             continue
 
-        srs = osr.SpatialReference()
-        srs.ImportFromWkt(ds.GetProjection())
-        if srs.IsProjected():
-            epsg = srs.GetAuthorityCode(None)
-            proj_counts[epsg] += 1
+    if not x_res_list or not y_res_list: # If no resolutions were collected
+        logger.error("No valid raster data with geotransform found in the input files for analysis. Cannot determine mosaic parameters.")
+        return None, None, None
 
-        gt = ds.GetGeoTransform()
-        x_res_list.append(abs(gt[1]))
-        y_res_list.append(abs(gt[5]))
-        ds = None
-
-    if not proj_counts:
-        logger.warning("No projections found. Defaulting to EPSG:4326")
-        target_epsg = "EPSG:4326" # Use EPSG:4326 as default which is WGS84 (World Geodetic System 1984).
+    # Determine target_epsg based on original logic
+    if not proj_counts: # No projected CRS identified in valid rasters
+        logger.warning("No projected CRS identified in valid rasters. Defaulting to EPSG:4326 (WGS84).")
+        determined_epsg = "EPSG:4326" # Use EPSG:4326 as default which is WGS84 (World Geodetic System 1984).
     else:
-        target_epsg = "EPSG:32647" # Use EPSG:32647 as default which is WGS84 UTM Zone 47 North (UTM Zone 47N) Coverage Thailand.
+        # Original logic: always use EPSG:32647 if any projection is found.
+        logger.info(f"Found projected CRS codes: {dict(proj_counts)}. Using predefined EPSG:32647 for Thailand.")
+        determined_epsg = "EPSG:32647" # Use EPSG:32647 as default which is WGS84 UTM Zone 47 North (UTM Zone 47N) Coverage Thailand.
 
     avg_x_res = sum(x_res_list) / len(x_res_list)
     avg_y_res = sum(y_res_list) / len(y_res_list)
 
-    logger.info(f"Target EPSG: {target_epsg}, Avg Res: {avg_x_res}, {avg_y_res}")
-    return target_epsg, avg_x_res, avg_y_res
+    logger.info(f"Determined Target EPSG: {determined_epsg}, Avg XRes: {avg_x_res:.6f}, Avg YRes: {avg_y_res:.6f}")
+    return determined_epsg, avg_x_res, avg_y_res
 
 def main():
     root_dir = 'Raster_Resample'
@@ -80,32 +104,71 @@ def main():
         # Output file: yyyymmdd_orbitID_Mosaic.tif
         final_output_path = os.path.join(output_dir, f"{date_str}_{orbit_id}_Mosaic.tif")
 
-        target_epsg, x_res, y_res = analyze_rasters(files)
+        target_epsg_str, x_res, y_res = analyze_rasters(files)
+
+        if target_epsg_str is None:
+            logger.error(f"Skipping Orbit {orbit_id} on {date_str} as mosaic parameters could not be determined from input rasters.")
+            continue
 
         all_reprojected = []
         for i, raster_file in enumerate(files):
             base_name = os.path.basename(raster_file)
             reprojected_path = os.path.join(orbit_dir, f"reproj_{i}_{base_name}")
 
-            logger.info(f"Reprojecting {base_name} to {target_epsg} with aligned pixels")
-            gdal.Warp(
-                reprojected_path,
-                raster_file,
-                options=gdal.WarpOptions(
-                    dstSRS=target_epsg,
-                    xRes=x_res,
-                    yRes=y_res,
-                    targetAlignedPixels=True,
-                    resampleAlg='near',
-                    srcNodata=0,
-                    dstNodata=0,
-                    creationOptions=['TILED=YES', 'COMPRESS=LZW', 'BIGTIFF=YES']
+            logger.info(f"Attempting to reproject {base_name} to {target_epsg_str} with resolution {x_res:.6f}, {y_res:.6f}")
+
+            # Pre-check if the source raster can be opened by GDAL
+            src_ds_check = None
+            try:
+                src_ds_check = gdal.Open(raster_file)
+                if src_ds_check is None:
+                    logger.warning(f"Source raster {raster_file} cannot be opened by GDAL. Skipping reprojection for this file.")
+                    continue # Skip to the next file
+            except RuntimeError as e:
+                logger.warning(f"GDAL RuntimeError while trying to open source raster {raster_file} for pre-check: {e}. Skipping.")
+                continue
+            finally:
+                if src_ds_check:
+                    src_ds_check = None # Dereference/close
+
+            try:
+                gdal.Warp(
+                    reprojected_path,
+                    raster_file,
+                    options=gdal.WarpOptions(
+                        dstSRS=target_epsg_str,
+                        xRes=x_res,
+                        yRes=y_res,
+                        targetAlignedPixels=True,
+                        resampleAlg='near',
+                        srcNodata=0,
+                        dstNodata=0,
+                        creationOptions=['TILED=YES', 'COMPRESS=LZW', 'BIGTIFF=YES']
+                    )
                 )
-            )
-            all_reprojected.append(reprojected_path)
+                logger.info(f"Successfully reprojected {base_name} to {reprojected_path}")
+                all_reprojected.append(reprojected_path)
+            except RuntimeError as e:
+                logger.warning(f"Failed to reproject {raster_file} to {reprojected_path}. GDAL Error: {e}. Skipping this file.")
+                if os.path.exists(reprojected_path):
+                    try:
+                        os.remove(reprojected_path)
+                        logger.debug(f"Removed partially created/failed reprojected file: {reprojected_path}")
+                    except OSError as ose:
+                        logger.warning(f"Could not remove partially created/failed reprojected file {reprojected_path}: {ose}")
+                continue
+            except Exception as e:
+                logger.error(f"An unexpected error occurred while reprojecting {raster_file} to {reprojected_path}: {e}. Skipping this file.")
+                if os.path.exists(reprojected_path):
+                    try:
+                        os.remove(reprojected_path)
+                        logger.debug(f"Removed partially created/failed reprojected file due to unexpected error: {reprojected_path}")
+                    except OSError as ose:
+                        logger.warning(f"Could not remove partially created/failed reprojected file {reprojected_path} after unexpected error: {ose}")
+                continue
 
         if not all_reprojected:
-            logger.error(f"No rasters were successfully reprojected for {orbit_id}!")
+            logger.error(f"No rasters were successfully reprojected for Orbit {orbit_id} on {date_str}. Skipping mosaic creation for this group.")
             continue
 
         vrt_path = os.path.join(orbit_dir, 'aligned_mosaic.vrt')
@@ -121,7 +184,7 @@ def main():
                 VRTNodata=0
             )
         )
-        if vrt is None:
+        if vrt is None: # gdal.BuildVRT returns a Dataset object on success, or None on failure.
             logger.error(f"Failed to build VRT for {orbit_id}")
             continue
         vrt = None
@@ -140,15 +203,21 @@ def main():
         if os.path.exists(final_output_path):
             logger.info("Cleaning up temporary files...")
             try:
-                os.remove(vrt_path)
-            except Exception as e:
-                logger.warning(f"Failed to remove VRT: {e}")
+                if os.path.exists(vrt_path):
+                    os.remove(vrt_path)
+                    logger.debug(f"Removed VRT: {vrt_path}")
+                else:
+                    logger.debug(f"VRT file {vrt_path} not found for cleanup.")
+            except OSError as e:
+                logger.warning(f"Failed to remove VRT: {vrt_path}. Error: {e}")
 
-            for file in all_reprojected:
-                try:
-                    os.remove(file)
-                except Exception as e:
-                    logger.warning(f"Failed to remove {file}: {e}")
+            for file_to_remove in all_reprojected:
+                if os.path.exists(file_to_remove):
+                    try:
+                        os.remove(file_to_remove)
+                        logger.debug(f"Removed temporary reprojected file: {file_to_remove}")
+                    except OSError as e:
+                        logger.warning(f"Failed to remove temporary reprojected file {file_to_remove}. Error: {e}")
 
         logger.info(f"Mosaic creation complete for orbit {orbit_id}!")
 

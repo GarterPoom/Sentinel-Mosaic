@@ -83,7 +83,11 @@ def main():
     root_dir = 'Raster_Resample'
     output_dir = 'Raster_Mosaic'
 
+<<<<<<< HEAD
     final_output_path = os.path.join(output_dir, '202501_LANDSAT_9_Mosaic.tif')
+=======
+    final_output_path = os.path.join(output_dir, 'Mosaic.tif')
+>>>>>>> 53b5e457cc20920e1ca71423c34465b3a089e263
 
     os.makedirs(output_dir, exist_ok=True)
 
@@ -111,7 +115,7 @@ def main():
                             dstSRS=target_epsg,
                             xRes=x_res,
                             yRes=y_res,
-                            targetAlignedPixels=True,
+                            targetAlignedPixels=True, # Align pixels
                             resampleAlg='near',
                             srcNodata=0, # Consider making this configurable or auto-detected if possible
                             dstNodata=0, # Consider making this configurable
