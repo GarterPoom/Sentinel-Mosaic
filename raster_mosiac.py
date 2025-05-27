@@ -51,7 +51,7 @@ def analyze_rasters(files):
     logger.info(f"Target EPSG: {target_epsg}, Avg Res: {avg_x_res}, {avg_y_res}")
     return target_epsg, avg_x_res, avg_y_res
 
-def build_overviews(filepath, overview_levels=[2, 4, 8, 16, 32], resampling_method='average'):
+def build_overviews(filepath, overview_levels=[2, 4, 8, 16, 32], resampling_method='nearest'):
     """
     Builds raster pyramid overviews for a given GeoTIFF file.
 
@@ -82,11 +82,8 @@ def main():
     # Configure input and output directories/paths
     root_dir = 'Raster_Resample'
     output_dir = 'Raster_Mosaic'
-<<<<<<< HEAD
+
     final_output_path = os.path.join(output_dir, '202501_LANDSAT_9_Mosaic.tif')
-=======
-    final_output_path = os.path.join(output_dir, 'Mosaic.tif')
->>>>>>> 04feb363226fab747fbea321b89edf2c7054fb2e
 
     os.makedirs(output_dir, exist_ok=True)
 
