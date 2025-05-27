@@ -55,7 +55,7 @@ def main():
     # Configure input and output directories/paths
     root_dir = 'Raster_Resample'
     output_dir = 'Raster_Mosaic'
-    final_output_path = os.path.join(output_dir, '20250221_25_Mosaic.tif')
+    final_output_path = os.path.join(output_dir, '202501_LANDSAT_9_Mosaic.tif')
 
     os.makedirs(output_dir, exist_ok=True)
 
