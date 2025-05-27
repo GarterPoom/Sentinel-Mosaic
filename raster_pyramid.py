@@ -17,7 +17,7 @@ def build_overviews(filepath, overview_levels=[2, 4, 8, 16, 32], resampling_meth
         overview_levels (list): List of integers representing the downsampling factors
                                 for each overview level. Default is [2, 4, 8, 16, 32].
         resampling_method (str): Resampling method to use for overview creation.
-                                 Common options include 'average', 'nearest', 'cubic',
+                                 Common options include 'average', 'nearest', 'cubic', 'mode',
                                  'lanczos'. Default is 'average'.
     """
     logger.info(f"Building overviews for {filepath} using levels {overview_levels} with {resampling_method} resampling...")
@@ -37,9 +37,19 @@ def build_overviews(filepath, overview_levels=[2, 4, 8, 16, 32], resampling_meth
 
 
 def main():
+    # Define the root directory to search for GeoTIFF files
+    search_directory = r'Raster_Mosaic'
+    # Define the pattern for GeoTIFF files (e.g., .tif, .tiff)
+    # The '**' will match any files and directories recursively
+    pattern = os.path.join(search_directory, '**', '*.tif')
 
-    filepath = r'Raster_Mosaic\202502_LANDSAT_9_Mosaic.tif'
-    build_overviews(filepath)
+    logger.info(f"Searching for GeoTIFF files in {search_directory} using pattern: {pattern}")
+
+    # Use glob to find all files matching the pattern recursively
+    for filepath in glob.glob(pattern, recursive=True):
+        logger.info(f"Found GeoTIFF file: {filepath}")
+        build_overviews(filepath)
+
 
 if __name__ == "__main__":
     main()
