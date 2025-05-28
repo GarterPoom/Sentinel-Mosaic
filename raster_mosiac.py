@@ -80,14 +80,10 @@ def build_overviews(filepath, overview_levels=[2, 4, 8, 16, 32], resampling_meth
 
 def main():
     # Configure input and output directories/paths
-    root_dir = 'Raster_Resample'
-    output_dir = 'Raster_Mosaic'
+    root_dir = r'LANDSAT_9\202501'
+    output_dir = r'Raster_Mosaic'
 
-<<<<<<< HEAD
-    final_output_path = os.path.join(output_dir, '202501_LANDSAT_9_Mosaic.tif')
-=======
-    final_output_path = os.path.join(output_dir, 'Mosaic.tif')
->>>>>>> 53b5e457cc20920e1ca71423c34465b3a089e263
+    final_output_path = os.path.join(output_dir, '202411_LANDSAT_9_Mosaic.tif')
 
     os.makedirs(output_dir, exist_ok=True)
 
