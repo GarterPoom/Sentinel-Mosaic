@@ -80,10 +80,22 @@ def build_overviews(filepath, overview_levels=[2, 4, 8, 16, 32], resampling_meth
 
 def main():
     # Configure input and output directories/paths
-    root_dir = r'LANDSAT_9\202501'
+    root_dir = r'LANDSAT_9\202411'
     output_dir = r'Raster_Mosaic'
 
-    final_output_path = os.path.join(output_dir, '202411_LANDSAT_9_Mosaic.tif')
+    # Dynamically generate the output filename based on the root_dir
+    # Split the root_dir into components and reverse them to get the deepest part first
+    path_parts = os.path.normpath(root_dir).split(os.sep)
+    # Take the last two parts and join them with an underscore
+    if len(path_parts) >= 2:
+        folder_name_for_output = f"{path_parts[-1]}_{path_parts[-2]}"
+    elif len(path_parts) == 1:
+        folder_name_for_output = path_parts[-1]
+    else:
+        folder_name_for_output = "Mosaic" # Default if root_dir is empty or just drive letter
+
+    final_output_filename = f"{folder_name_for_output}_Mosaic.tif"
+    final_output_path = os.path.join(output_dir, final_output_filename)
 
     os.makedirs(output_dir, exist_ok=True)
 
