@@ -61,7 +61,7 @@ def build_overviews(filepath, overview_levels=[2, 4, 8, 16, 32], resampling_meth
                                 for each overview level. Default is [2, 4, 8, 16, 32].
         resampling_method (str): Resampling method to use for overview creation.
                                  Common options include 'average', 'nearest', 'cubic',
-                                 'lanczos'. Default is 'average'.
+                                 'lanczos'. Default is 'nearest'.
     """
     logger.info(f"Building overviews for {filepath} using levels {overview_levels} with {resampling_method} resampling...")
     try:
