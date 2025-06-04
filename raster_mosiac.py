@@ -81,6 +81,7 @@ def build_overviews(filepath, overview_levels=[2, 4, 8, 16, 32], resampling_meth
 def main():
     # Configure input and output directories/paths
     root_dir = r'LANDSAT_9' # This is now the parent directory containing subfolders
+
     output_dir = r'Raster_Mosaic'
 
     os.makedirs(output_dir, exist_ok=True)
@@ -97,7 +98,7 @@ def main():
         logger.info(f"\n--- Processing subfolder: {subfolder_name} ---")
 
         # Define output path for the current subfolder's mosaic
-        final_output_filename = f"{subfolder_name}_Mosaic.tif"
+        final_output_filename = f"{subfolder_name}_LANDSAT_9_Mosaic.tif"
         final_output_path = os.path.join(output_dir, final_output_filename)
 
         # Find all raster files within the current subfolder
@@ -120,36 +121,47 @@ def main():
         # Reproject all rasters for the current subfolder
         all_reprojected = []
         for i, raster_file in enumerate(raster_files):
-            base_name = os.path.basename(raster_file)
-            # Create a temporary reprojected path within the output_dir, specific to this subfolder
-            reprojected_temp_dir = os.path.join(output_dir, f"temp_{subfolder_name}_reprojected")
-            os.makedirs(reprojected_temp_dir, exist_ok=True)
-            reprojected_path = os.path.join(reprojected_temp_dir, f"reproj_{i}_{base_name}")
-
             try:
+                ds = gdal.Open(raster_file)
+                if ds is None:
+                    logger.warning(f"Cannot open {raster_file}. Skipping.")
+                    continue
+
+                srs = osr.SpatialReference()
+                srs.ImportFromWkt(ds.GetProjection())
+                source_epsg = srs.GetAuthorityCode(None)
+                ds = None
+
+                if source_epsg == target_epsg.replace("EPSG:", ""):
+                    logger.info(f"{os.path.basename(raster_file)} already in {target_epsg}, skipping reprojection.")
+                    all_reprojected.append(raster_file)
+                    continue
+
+                base_name = os.path.basename(raster_file)
+                reprojected_temp_dir = os.path.join(output_dir, f"temp_{subfolder_name}_reprojected")
+                os.makedirs(reprojected_temp_dir, exist_ok=True)
+                reprojected_path = os.path.join(reprojected_temp_dir, f"reproj_{i}_{base_name}")
+
                 logger.info(f"Reprojecting {base_name} to {target_epsg} with resolution {x_res}, {y_res} and aligned pixels")
                 warp_options = gdal.WarpOptions(
-                                dstSRS=target_epsg,
-                                xRes=x_res,
-                                yRes=y_res,
-                                targetAlignedPixels=True, # Align pixels
-                                resampleAlg='near',
-                                srcNodata=0, # Consider making this configurable or auto-detected if possible
-                                dstNodata=0, # Consider making this configurable
-                                outputType=gdal.GDT_UInt16,
-                                creationOptions=['TILED=YES', 'COMPRESS=LZW', 'BIGTIFF=YES'],
-                                errorThreshold=0.0 # Default is 0.125, 0.0 means exact reprojection
-                            )
-                ds = gdal.Warp(
-                    reprojected_path,
-                    raster_file,
-                    options=warp_options
+                    dstSRS=target_epsg,
+                    xRes=x_res,
+                    yRes=y_res,
+                    targetAlignedPixels=True,
+                    resampleAlg='near',
+                    srcNodata=0,
+                    dstNodata=0,
+                    outputType=gdal.GDT_UInt16,
+                    creationOptions=['TILED=YES', 'COMPRESS=LZW', 'BIGTIFF=YES'],
+                    errorThreshold=0.0
                 )
+                ds = gdal.Warp(reprojected_path, raster_file, options=warp_options)
                 if ds is None:
-                    logger.error(f"gdal.Warp failed for {raster_file} and returned None, but did not raise an exception.")
+                    logger.error(f"gdal.Warp failed for {raster_file} and returned None.")
                 else:
                     all_reprojected.append(reprojected_path)
                 ds = None
+
             except Exception as e:
                 logger.error(f"Failed to reproject {raster_file}: {e}")
                 continue
@@ -208,11 +220,6 @@ def main():
             except Exception as e:
                 logger.warning(f"Failed to remove VRT {vrt_path}: {e}")
 
-            for file in all_reprojected:
-                try:
-                    os.remove(file)
-                except Exception as e:
-                    logger.warning(f"Failed to remove {file}: {e}")
             try:
                 # Remove the temporary reprojected files directory
                 os.rmdir(reprojected_temp_dir)
