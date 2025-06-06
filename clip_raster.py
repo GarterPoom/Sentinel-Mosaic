@@ -14,49 +14,6 @@ from fiona.crs import from_epsg # handling coordinate reference systems.
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s') # Set up logging configuration
 
-def polygonize_clipped_raster(clipped_raster_path, output_polygon_path, nodata_fill_value):
-    """
-    Polygonizes a clipped raster, creating polygons for valid data areas (pixels set to 1).
-
-    Args:
-        clipped_raster_path (str): Path to the clipped raster file.
-        output_polygon_path (str): Path to save the output polygon GeoJSON file.
-        nodata_fill_value (float or int): The value in the clipped raster that represents nodata
-                                          (i.e., the fill value used by rasterio.mask).
-    """
-    try:
-        with rasterio.open(clipped_raster_path) as src:
-            image = src.read(1)  # Read the first band
-            transform = src.transform
-            crs = src.crs
-            
-            # Create a binary mask: 1 for valid data, 0 for nodata_fill_value
-            # Pixels equal to nodata_fill_value become 0, others (valid data) become 1.
-            binary_mask = np.where(image == nodata_fill_value, 0, 1).astype(np.uint8)
-            
-            # Extract shapes (polygons) from the binary_mask where pixel value is 1
-            # The mask=(binary_mask == 1) ensures we only process regions of 1s.
-            results = [
-                {'properties': {'raster_val': v}, 'geometry': s}
-                for i, (s, v) in enumerate(
-                    shapes(binary_mask, mask=(binary_mask == 1), transform=transform)
-                ) if v == 1 # Filter for polygons derived from pixels that were set to 1
-            ]
-
-            if not results:
-                logging.info(f"No valid data (value 1) polygons found in {os.path.basename(clipped_raster_path)} to polygonize.")
-                return
-
-            geometries = [shape(result['geometry']) for result in results]
-            gdf_polygons = gpd.GeoDataFrame(geometry=geometries, crs=crs)
-            gdf_polygons['value'] = 1 # Add a column indicating the (binary) value of the polygonized area
-
-            os.makedirs(os.path.dirname(output_polygon_path), exist_ok=True)
-            gdf_polygons.to_file(output_polygon_path, driver='ESRI ShapeFile') # Save the polygons to a shapefile
-            logging.info(f"Polygonized raster saved to {output_polygon_path}")
-    except Exception as e:
-        logging.error(f"Error polygonizing {os.path.basename(clipped_raster_path)}: {e}")
-
 def clip_rasters_by_subdistrict_hierarchy(
     folder_path, shapefile_path,
     province_attr, district_attr, subdistrict_attr,
@@ -178,30 +135,6 @@ def clip_rasters_by_subdistrict_hierarchy(
     
     logging.info("Batch clipping finished.")
 
-    # After all clipping is done, polygonize the results
-    if not clipped_raster_info_list:
-        logging.info("No rasters were successfully clipped, skipping polygonization.")
-    else:
-        logging.info(f"Starting polygonization for {len(clipped_raster_info_list)} clipped rasters...")
-        for info in clipped_raster_info_list:
-            clipped_path = info['clipped_path']
-            nodata_value = info['nodata_fill_value']
-            province, district, subdistrict = info['output_structure']
-
-            polygon_output_folder = os.path.join(polygon_dir, province, district, subdistrict)
-            os.makedirs(polygon_output_folder, exist_ok=True)
-            
-            base_clipped_name = os.path.splitext(os.path.basename(clipped_path))[0]
-            polygon_base_name = base_clipped_name.replace("clipped_", "", 1) 
-            polygon_filename = f"polygon_{polygon_base_name}.shp"  # Create a polygon filename based on the clipped raster name
-            polygon_final_path = os.path.join(polygon_output_folder, polygon_filename)
-
-            polygonize_clipped_raster(clipped_path, polygon_final_path, nodata_value)
-        logging.info("Batch polygonizing finished.")
-
-    logging.info("Overall batch clipping and polygonizing process complete.")
-
-
 def main():
     clip_rasters_by_subdistrict_hierarchy(
         folder_path="LANDSAT_9/", 
@@ -210,7 +143,6 @@ def main():
         district_attr="AP_TN",
         subdistrict_attr="TB_TN",
         output_dir="Clipped_Rasters",
-        polygon_dir="Polygonized_Rasters"
     )
 
 if __name__ == "__main__":
