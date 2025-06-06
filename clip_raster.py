@@ -52,8 +52,8 @@ def polygonize_clipped_raster(clipped_raster_path, output_polygon_path, nodata_f
             gdf_polygons['value'] = 1 # Add a column indicating the (binary) value of the polygonized area
 
             os.makedirs(os.path.dirname(output_polygon_path), exist_ok=True)
-            gdf_polygons.to_file(output_polygon_path, driver='GeoJSON')
-            logging.info(f"Saved polygonized raster: {output_polygon_path}")
+            gdf_polygons.to_file(output_polygon_path, driver='ESRI ShapeFile') # Save the polygons to a shapefile
+            logging.info(f"Polygonized raster saved to {output_polygon_path}")
     except Exception as e:
         logging.error(f"Error polygonizing {os.path.basename(clipped_raster_path)}: {e}")
 
@@ -97,7 +97,9 @@ def clip_rasters_by_subdistrict_hierarchy(
         logging.warning("No .tif files found in the folder.")
         return
 
-    logging.info(f"Found {len(raster_files)} raster files. Starting batch clipping and polygonizing...") # Log the number of raster files found
+    logging.info(f"Found {len(raster_files)} raster files. Starting batch clipping...")
+
+    clipped_raster_info_list = [] # To store info for polygonization
 
     for raster_path in raster_files: # Iterate through each raster file found
         raster_name = os.path.basename(raster_path)
@@ -108,8 +110,6 @@ def clip_rasters_by_subdistrict_hierarchy(
                 original_src_nodata = src.nodata # Get nodata value from original raster
                 raster_bbox = box(*raster_bounds) # Create a bounding box from the raster bounds
             
-            # Determine the fill value used by rasterio.mask for areas outside the geometry.
-            # This value will be treated as nodata in the clipped raster for polygonization.
             nodata_fill_value_for_clipped = original_src_nodata if original_src_nodata is not None else 0
             gdf_proj = gdf.to_crs(raster_crs) # Reproject the GeoDataFrame to the raster's CRS
 
@@ -132,7 +132,7 @@ def clip_rasters_by_subdistrict_hierarchy(
 
                 with rasterio.Env(GDAL_CACHEMAX=512): # Set GDAL cache size to 512 MB for better performance
                     with rasterio.open(raster_path) as src:
-                        out_image, out_transform = mask(src, geom_json, crop=True)
+                        out_image, out_transform = mask(src, geom_json, crop=True, nodata=nodata_fill_value_for_clipped, filled=True)
                         out_meta = src.meta.copy()
 
                 out_meta.update({ # Update metadata for the output raster
@@ -140,6 +140,7 @@ def clip_rasters_by_subdistrict_hierarchy(
                     "height": out_image.shape[1], # Height of the output raster
                     "width": out_image.shape[2], # Width of the output raster
                     "transform": out_transform, # Affine transform for the output raster
+                    "nodata": nodata_fill_value_for_clipped, # Ensure nodata is set in meta
                     "tiled": True, # Enable tiling for the output raster
                     "blockxsize": 256, # Block size in x direction
                     "blockysize": 256, # Block size in y direction
@@ -163,26 +164,43 @@ def clip_rasters_by_subdistrict_hierarchy(
                 rio_copy(temp_output, clipped_path, copy_src_overviews=True) # Copy the temporary raster to the final output path with overviews
                 os.remove(temp_output) # Remove the temporary file after copying
 
-                logging.info(f"Saved clipped raster: {clipped_path}") # Log the success message for clipped raster
+                logging.info(f"Saved clipped raster: {clipped_path}")
 
-                # Polygonize the clipped raster
-                logging.info(f"Polygonizing clipped raster: {clipped_path}") # Log the polygonization process
-                polygon_output_folder = os.path.join(polygon_dir, province, district, subdistrict)
-                os.makedirs(polygon_output_folder, exist_ok=True)
-                
-                base_clipped_name = os.path.splitext(os.path.basename(clipped_path))[0]
-                # Remove "clipped_" prefix for a cleaner polygon filename
-                polygon_base_name = base_clipped_name.replace("clipped_", "", 1) 
-                polygon_filename = f"polygon_{polygon_base_name}.geojson"
-                polygon_final_path = os.path.join(polygon_output_folder, polygon_filename)
-
-                # Call the polygonization function to create polygons from the clipped raster
-                polygonize_clipped_raster(clipped_path, polygon_final_path, nodata_fill_value_for_clipped)
+                # Store info for later polygonization
+                clipped_raster_info_list.append({
+                    'clipped_path': clipped_path,
+                    'nodata_fill_value': nodata_fill_value_for_clipped,
+                    'output_structure': (province, district, subdistrict) # To recreate polygon output path
+                })
 
         except Exception as e: # Handle any exceptions that occur during processing
             logging.error(f"Error processing {raster_name} for subdistrict {subdistrict if 'subdistrict' in locals() else 'N/A'}: {e}")
     
-    logging.info("Batch clipping and polygonizing complete.")
+    logging.info("Batch clipping finished.")
+
+    # After all clipping is done, polygonize the results
+    if not clipped_raster_info_list:
+        logging.info("No rasters were successfully clipped, skipping polygonization.")
+    else:
+        logging.info(f"Starting polygonization for {len(clipped_raster_info_list)} clipped rasters...")
+        for info in clipped_raster_info_list:
+            clipped_path = info['clipped_path']
+            nodata_value = info['nodata_fill_value']
+            province, district, subdistrict = info['output_structure']
+
+            polygon_output_folder = os.path.join(polygon_dir, province, district, subdistrict)
+            os.makedirs(polygon_output_folder, exist_ok=True)
+            
+            base_clipped_name = os.path.splitext(os.path.basename(clipped_path))[0]
+            polygon_base_name = base_clipped_name.replace("clipped_", "", 1) 
+            polygon_filename = f"polygon_{polygon_base_name}.shp"  # Create a polygon filename based on the clipped raster name
+            polygon_final_path = os.path.join(polygon_output_folder, polygon_filename)
+
+            polygonize_clipped_raster(clipped_path, polygon_final_path, nodata_value)
+        logging.info("Batch polygonizing finished.")
+
+    logging.info("Overall batch clipping and polygonizing process complete.")
+
 
 def main():
     clip_rasters_by_subdistrict_hierarchy(
