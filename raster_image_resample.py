@@ -96,6 +96,26 @@ def safe_remove(file_path, max_attempts=5, delay=1):
             return False
     return False
 
+def build_overviews(filepath, overview_levels=[2, 4, 8, 16, 32], resampling_method='nearest'):
+    """
+    Builds raster pyramid overviews for a given GeoTIFF file.
+    """
+    logger = logging.getLogger(__name__)
+    logger.info(f"Building overviews for {filepath} using levels {overview_levels} with {resampling_method} resampling...")
+    try:
+        ds = gdal.Open(str(filepath), gdal.GA_Update)
+        if ds is None:
+            logger.error(f"Cannot open {filepath} to build overviews.")
+            return
+
+        # Build overviews
+        ds.BuildOverviews(resampling_method, overview_levels)
+        ds = None # Close the dataset to flush changes
+
+        logger.info(f"Successfully built overviews for {filepath}")
+    except Exception as e:
+        logger.error(f"Failed to build overviews for {filepath}: {e}")
+
 def process_bands(input_folder, output_folder, scl_output_folder=None):
     """
     Processes Sentinel-2 band files in a given input folder with GDAL compression.
@@ -207,6 +227,9 @@ def process_bands(input_folder, output_folder, scl_output_folder=None):
         if not output_path.exists():
             raise ValueError(f"Failed to create output file: {output_path}")
         
+        # Build overviews for the main output file
+        build_overviews(str(output_path), resampling_method='nearest')
+        
         # Export SCL if requested and file exists
         if scl_file and scl_output_folder:
             scl_output_filename = f"{tile_date_timestamp}_SCL.tif"
@@ -229,6 +252,8 @@ def process_bands(input_folder, output_folder, scl_output_folder=None):
             )
             
             print(f"Exported SCL file: {scl_output_path}")
+            # Build overviews for the SCL file
+            build_overviews(str(scl_output_path), resampling_method='nearest')
         
         # Clean up temporary files
         print("Cleaning up temporary files.")
