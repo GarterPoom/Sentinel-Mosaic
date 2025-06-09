@@ -114,7 +114,7 @@ def clip_rasters_by_subdistrict_hierarchy(
     unique_clip_units = gdf[clip_level_attr].dropna().unique() # Get unique values for the specified clipping level
     logging.info(f"Clipping by attribute '{clip_level_attr}'. Found {len(unique_clip_units)} unique units.")
 
-    clipped_raster_info_list = [] # To store info for polygonization
+    clipped_raster_info_list = [] # To store info for polygonization                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       
     
     for raster_path in raster_files: # Iterate through each raster file found
         raster_name = os.path.basename(raster_path)
@@ -205,28 +205,35 @@ def clip_rasters_by_subdistrict_hierarchy(
                 os.makedirs(clipped_folder, exist_ok=True) # Ensure the clipped folder exists
                 os.makedirs(polygon_output_folder, exist_ok=True) # Ensure polygon folder exists
 
-                clipped_filename = f"clipped_{unique_file_identifier}.tif" 
+                # Filename for the clipped raster
+                clipped_filename = f"clipped_{unique_file_identifier}.tif"
+
+                # Full path for the clipped raster 
                 clipped_path = os.path.join(clipped_folder, clipped_filename)
                 
+                # Create a temporary file for writing the clipped raster
                 with tempfile.NamedTemporaryFile(suffix=".tif", delete=False) as tmp: 
                     temp_output = tmp.name
 
-                with rasterio.open(temp_output, "w", **out_meta) as dest: 
+                # Write the clipped raster to the temporary file
+                with rasterio.open(temp_output, "w", **out_meta) as dest:
                     dest.write(out_image)
 
-                with rasterio.open(temp_output, 'r+') as dataset: 
-                    dataset.build_overviews([2, 4, 8, 16, 32], Resampling.nearest)
-                    dataset.update_tags(ns='rio_overview', resampling='nearest')
+                # Build overviews for the clipped raster
+                # This is done to improve performance when viewing the raster at different zoom levels
+                with rasterio.open(temp_output, 'r+') as dataset: # Open the temporary raster file for reading and writing
+                    dataset.build_overviews([2, 4, 8, 16, 32], Resampling.nearest) # Build overviews with nearest neighbor resampling
+                    dataset.update_tags(ns='rio_overview', resampling='nearest') # Update overview resampling method
 
-                rio_copy(temp_output, clipped_path, copy_src_overviews=True) 
-                os.remove(temp_output) 
+                rio_copy(temp_output, clipped_path, copy_src_overviews=True) # Copy the temporary raster to the final destination with overviews
+                os.remove(temp_output) # Remove the temporary file after copying
 
                 logging.info(f"Saved clipped raster: {clipped_path}")
 
-                polygon_filename = f"polygon_{unique_file_identifier}.shp" 
-                polygon_final_path = os.path.join(polygon_output_folder, polygon_filename)
+                polygon_filename = f"polygon_{unique_file_identifier}.shp" # Polygon filename includes the clip unit name and raster name for uniqueness
+                polygon_final_path = os.path.join(polygon_output_folder, polygon_filename) # Full path for the polygonized raster
 
-                clipped_raster_info_list.append({
+                clipped_raster_info_list.append({ # Store information for polygonization
                     'clipped_path': clipped_path,
                     'nodata_fill_value': nodata_fill_value_for_clipped,
                     'polygon_final_path': polygon_final_path
@@ -252,7 +259,7 @@ def clip_rasters_by_subdistrict_hierarchy(
 
 def main():
     clip_rasters_by_subdistrict_hierarchy(
-        folder_path="LANDSAT_9/", # Path to the folder containing raster files
+        folder_path="Sentinel-2/", # Path to the folder containing raster files
         shapefile_path="Thailand/Thailand - Subnational Administrative Boundaries.shp", # Path to the shapefile with subdistrict boundaries
         province_attr="PV_TN", # Attribute for province in the shapefile
         district_attr="AP_TN", # Attribute for district in the shapefile
