@@ -16,45 +16,129 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 def polygonize_clipped_raster(clipped_raster_path, output_polygon_path, nodata_fill_value):
     """
-    Polygonizes a clipped raster, creating polygons for valid data areas (pixels set to 1).
+    Polygonizes raster files found in the directory specified by `clipped_raster_path`,
+    creating polygons for valid data areas. Output polygons are saved as Shapefiles
+    in the directory specified by `output_polygon_path`.
 
     Args:
-        clipped_raster_path (str): Path to the clipped raster file.
-        output_polygon_path (str): Path to save the output polygon GeoJSON file.
-        nodata_fill_value (float or int): The value in the clipped raster that represents nodata
+        clipped_raster_path (str): Path to the DIRECTORY containing input raster files (e.g., .tif).
+                                   The function will search for '*.tif' files within this directory.
+        output_polygon_path (str): Path to the DIRECTORY where output polygon Shapefiles will be saved.
+                                   Each Shapefile will be named after its corresponding raster file.
+        nodata_fill_value (float or int): The value in the input rasters that represents nodata.
                                           (i.e., the fill value used by rasterio.mask).
-        # Note: This function assumes the input raster is already clipped to the desired area.
+        # Note: This function assumes each input raster is already clipped to the desired area of interest.
     """
+    # Arguments are now expected to be directories
+    input_dir = clipped_raster_path
+    output_dir = output_polygon_path
+
     try:
-        with rasterio.open(clipped_raster_path) as src:
-            image = src.read(1)  # Read the first band
-            transform = src.transform
-            crs = src.crs
+        os.makedirs(output_dir, exist_ok=True) # Ensure output directory exists
+
+        # Use glob to find all .tif files recursively in the input_dir
+        search_pattern = os.path.join(input_dir, '**', '*.tif')
+        raster_files = glob.glob(search_pattern, recursive=True)
+
+        if not raster_files:
+            logging.info(f"No .tif files found in {input_dir} to polygonize.")
+            return
+
+        logging.info(f"Found {len(raster_files)} raster files in {input_dir} for polygonization.")
+
+        for individual_raster_file in raster_files:
+            base_name = os.path.basename(individual_raster_file)
             
-            # Create a binary mask: 1 for valid data, 0 for nodata_fill_value
-            # Pixels equal to nodata_fill_value become 0, others (valid data) become 1.
-            binary_mask = np.where(image == nodata_fill_value, 0, 1).astype(np.uint8)
+            # Determine the relative path of the raster file from the input_dir
+            relative_path_to_file = os.path.relpath(individual_raster_file, input_dir)
+            # Determine the relative directory structure
+            relative_dir_structure = os.path.dirname(relative_path_to_file)
             
-            # Extract shapes (polygons) from the binary_mask where pixel value is 1
-            # The mask=(binary_mask == 1) ensures we only process regions of 1s.
-            results = [
-                {'properties': {'raster_val': v}, 'geometry': s}
-                for i, (s, v) in enumerate(
-                    shapes(binary_mask, mask=(binary_mask == 1), transform=transform)
-                ) if v == 1 # Filter for polygons derived from pixels that were set to 1
-            ]
+            # Create corresponding output subdirectory
+            current_output_sub_dir = os.path.join(output_dir, relative_dir_structure)
+            os.makedirs(current_output_sub_dir, exist_ok=True)
+            
+            # Construct the output polygon file path (Shapefile)
+            output_filename = os.path.splitext(base_name)[0] + '.shp'
+            current_output_shapefile_path = os.path.join(current_output_sub_dir, output_filename)
 
-            if not results:
-                logging.info(f"No valid data (value 1) polygons found in {os.path.basename(clipped_raster_path)} to polygonize.")
-                return
+            try: # Inner try-except for individual file processing
+                with rasterio.open(individual_raster_file) as src:
+                    image = src.read(1)  # Read the first band
+                    transform = src.transform
+                    crs = src.crs
+                    
+                    # Create a binary mask: 1 for valid data, 0 for nodata_fill_value
+                    binary_mask = np.where(image == nodata_fill_value, 0, 1).astype(np.uint8)
+                    
+                    # Extract shapes (polygons) from the binary_mask where pixel value is 1
+                    results = [
+                        {'properties': {'raster_val': v}, 'geometry': s}
+                        for i, (s, v) in enumerate(
+                            shapes(binary_mask, mask=(binary_mask == 1), transform=transform)
+                        ) if v == 1 # Filter for polygons derived from pixels that were set to 1
+                    ]
 
-            geometries = [shape(result['geometry']) for result in results]
-            gdf_polygons = gpd.GeoDataFrame(geometry=geometries, crs=crs)
-            gdf_polygons['value'] = 1 # Add a column indicating the (binary) value of the polygonized area
+                    if not results:
+                        logging.info(f"No valid data (value 1) polygons found in {base_name} to polygonize.")
+                        continue # Skip to the next file
 
-            os.makedirs(os.path.dirname(output_polygon_path), exist_ok=True)
-            gdf_polygons.to_file(output_polygon_path, driver='ESRI ShapeFile') # Save the polygons to a shapefile
-            logging.info(f"Polygonized raster saved to {output_polygon_path}")
-    except Exception as e:
-        logging.error(f"Error polygonizing {os.path.basename(clipped_raster_path)}: {e}")
+                    geometries = [shape(result['geometry']) for result in results]
+                    gdf_polygons = gpd.GeoDataFrame(geometry=geometries, crs=crs)
+                    gdf_polygons['value'] = 1 # Add a column indicating the (binary) value of the polygonized area
 
+                    gdf_polygons.to_file(current_output_shapefile_path, driver='ESRI ShapeFile')
+                    logging.info(f"Polygonized {base_name} and saved to {current_output_shapefile_path}")
+            except Exception as e_file:
+                logging.error(f"Error polygonizing {base_name}: {e_file}")
+                # Continue to the next file even if one fails
+
+    except Exception as e_main: # Outer try-except for issues like directory access
+        logging.error(f"Error in polygonization process for directory {input_dir}: {e_main}")
+
+def main():
+    """
+    Main function to demonstrate and run the raster polygonization process.
+    Sets up input/output directories and nodata value, then calls the polygonization function.
+    """
+    # --- Configuration ---
+    # TODO: Replace these placeholder paths with actual paths to your data.
+    # Example using raw strings for Windows paths:
+    # input_raster_directory = r"D:\Landsat_Mosaic_Data\clipped_rasters"
+    # output_polygon_directory = r"D:\Landsat_Mosaic_Data\output_polygons"
+    
+    # Using relative paths for easier example execution:
+    input_raster_directory = "Clipped_Rasters" 
+    output_polygon_directory = "Polygonized_Rasters"
+    
+    # This is the value in your rasters that signifies "no data".
+    # Adjust this to your specific nodata value (e.g., -9999, 0, 255).
+    nodata_value_in_raster = 0 
+
+    # --- Setup (Optional: for demonstration, create dummy directories if they don't exist) ---
+    if not os.path.exists(input_raster_directory):
+        os.makedirs(input_raster_directory)
+        logging.info(f"Created dummy input directory: {os.path.abspath(input_raster_directory)}")
+        logging.info(f"Please place your .tif raster files in this directory for processing.")
+    
+    if not os.path.exists(output_polygon_directory):
+        os.makedirs(output_polygon_directory)
+        logging.info(f"Created dummy output directory: {os.path.abspath(output_polygon_directory)}")
+        logging.info(f"Output .shp files will be saved in this directory.")
+
+    # --- Execution ---
+    logging.info(f"Starting polygonization process...")
+    logging.info(f"Input raster directory: {os.path.abspath(input_raster_directory)}")
+    logging.info(f"Output polygon directory: {os.path.abspath(output_polygon_directory)}")
+    logging.info(f"Nodata value for masking: {nodata_value_in_raster}")
+
+    polygonize_clipped_raster(
+        clipped_raster_path=input_raster_directory,   # This is now a directory path
+        output_polygon_path=output_polygon_directory, # This is now a directory path
+        nodata_fill_value=nodata_value_in_raster
+    )
+    
+    logging.info("Polygonization process finished.")
+
+if __name__ == "__main__":
+    main()
