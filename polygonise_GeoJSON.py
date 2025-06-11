@@ -14,7 +14,7 @@ from fiona.crs import from_epsg # handling coordinate reference systems.
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s') # Set up logging configuration
 
-def polygonize_clipped_raster(clipped_raster_path, output_polygon_path, nodata_fill_value):
+def polygonize_clipped_raster(clipped_raster_path, output_polygon_path, nodata_fill_value, output_geojson_path=None):
     """
     Polygonizes raster files found in the directory specified by `clipped_raster_path`,
     creating polygons for valid data areas. Output polygons are saved as Shapefiles
@@ -27,11 +27,14 @@ def polygonize_clipped_raster(clipped_raster_path, output_polygon_path, nodata_f
                                    Each Shapefile will be named after its corresponding raster file.
         nodata_fill_value (float or int): The value in the input rasters that represents nodata.
                                           (i.e., the fill value used by rasterio.mask).
+        output_geojson_path (str, optional): Path to the DIRECTORY where output polygon GeoJSON files will be saved.
+                                             If None, GeoJSON export is skipped. Defaults to None.
         # Note: This function assumes each input raster is already clipped to the desired area of interest.
     """
     # Arguments are now expected to be directories
     input_dir = clipped_raster_path
     output_dir = output_polygon_path
+    geojson_output_dir = output_geojson_path
 
     try:
         os.makedirs(output_dir, exist_ok=True) # Ensure output directory exists
@@ -39,6 +42,9 @@ def polygonize_clipped_raster(clipped_raster_path, output_polygon_path, nodata_f
         # Use glob to find all .tif files recursively in the input_dir
         search_pattern = os.path.join(input_dir, '**', '*.tif')
         raster_files = glob.glob(search_pattern, recursive=True)
+
+        if geojson_output_dir:
+            os.makedirs(geojson_output_dir, exist_ok=True) # Ensure GeoJSON output directory exists
 
         if not raster_files:
             logging.info(f"No .tif files found in {input_dir} to polygonize.")
@@ -58,9 +64,14 @@ def polygonize_clipped_raster(clipped_raster_path, output_polygon_path, nodata_f
             current_output_sub_dir = os.path.join(output_dir, relative_dir_structure)
             os.makedirs(current_output_sub_dir, exist_ok=True)
             
-            # Construct the output polygon file path (Shapefile)
-            output_filename = os.path.splitext(base_name)[0] + '.shp'
-            current_output_shapefile_path = os.path.join(current_output_sub_dir, output_filename)
+            # Construct the output polygon file paths
+            output_filename_base = os.path.splitext(base_name)[0] + '.shp'
+            current_output_shapefile_path = os.path.join(current_output_sub_dir, output_filename_base + '.shp')
+
+            if geojson_output_dir:
+                current_geojson_output_sub_dir = os.path.join(geojson_output_dir, relative_dir_structure)
+                os.makedirs(current_geojson_output_sub_dir, exist_ok=True)
+                current_output_geojson_path = os.path.join(current_geojson_output_sub_dir, output_filename_base + '.geojson')
 
             try: # Inner try-except for individual file processing
                 with rasterio.open(individual_raster_file) as src:
@@ -89,6 +100,11 @@ def polygonize_clipped_raster(clipped_raster_path, output_polygon_path, nodata_f
 
                     gdf_polygons.to_file(current_output_shapefile_path, driver='ESRI ShapeFile')
                     logging.info(f"Polygonized {base_name} and saved to {current_output_shapefile_path}")
+
+                    if geojson_output_dir and current_output_geojson_path:
+                        gdf_polygons.to_file(current_output_geojson_path, driver='GeoJSON')
+                        logging.info(f"Exported GeoJSON for {base_name} to {current_output_geojson_path}")
+
             except Exception as e_file:
                 logging.error(f"Error polygonizing {base_name}: {e_file}")
                 # Continue to the next file even if one fails
@@ -110,6 +126,7 @@ def main():
     # Using relative paths for easier example execution:
     input_raster_directory = "Clipped_Rasters" 
     output_polygon_directory = "Polygonized_Rasters"
+    output_geojson_directory = "GeoJSON_Polygons" # New directory for GeoJSON outputs
     
     # This is the value in your rasters that signifies "no data".
     # Adjust this to your specific nodata value (e.g., -9999, 0, 255).
@@ -125,17 +142,24 @@ def main():
         os.makedirs(output_polygon_directory)
         logging.info(f"Created dummy output directory: {os.path.abspath(output_polygon_directory)}")
         logging.info(f"Output .shp files will be saved in this directory.")
+    
+    if not os.path.exists(output_geojson_directory): # Create GeoJSON output directory if it doesn't exist
+        os.makedirs(output_geojson_directory)
+        logging.info(f"Created dummy GeoJSON output directory: {os.path.abspath(output_geojson_directory)}")
+        logging.info(f"Output .geojson files will be saved in this directory.")
 
     # --- Execution ---
     logging.info(f"Starting polygonization process...")
     logging.info(f"Input raster directory: {os.path.abspath(input_raster_directory)}")
     logging.info(f"Output polygon directory: {os.path.abspath(output_polygon_directory)}")
+    logging.info(f"Output GeoJSON directory: {os.path.abspath(output_geojson_directory)}")
     logging.info(f"Nodata value for masking: {nodata_value_in_raster}")
 
     polygonize_clipped_raster(
         clipped_raster_path=input_raster_directory,   # This is now a directory path
         output_polygon_path=output_polygon_directory, # This is now a directory path
-        nodata_fill_value=nodata_value_in_raster
+        nodata_fill_value=nodata_value_in_raster,
+        output_geojson_path=output_geojson_directory  # Pass the new GeoJSON directory
     )
     
     logging.info("Polygonization process finished.")

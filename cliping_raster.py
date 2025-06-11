@@ -179,8 +179,6 @@ def clip_rasters_by_subdistrict_hierarchy(
 
                 logging.info(f"Saved clipped raster: {clipped_path}")
 
-                polygon_filename = f"polygon_{unique_file_identifier}.shp" # Polygon filename includes the clip unit name and raster name for uniqueness
-
                 clipped_raster_info_list.append({ # Store information for polygonization
                     'clipped_path': clipped_path,
                     'nodata_fill_value': nodata_fill_value_for_clipped,

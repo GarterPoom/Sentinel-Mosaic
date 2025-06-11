@@ -6,7 +6,7 @@ import numpy as np
 # --- CONFIG ---
 input_dir      = r'LANDSAT_9'
 output_dir     = r'Raster_Composite'
-band_indices   = [6, 4, 3]          # Band 7 (R), Band 5 (G), Band 4 (B)
+band_indices   = [6, 4, 3]          # Band 7 (SWIR), Band 5 (NIR), Band 4 (Red)
 output_suffix  = '_Com754.tif'  # Output file suffix
 overwrite_ok   = False              # Set to True to overwrite existing files
 

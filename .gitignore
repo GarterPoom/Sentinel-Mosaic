@@ -389,3 +389,50 @@ Raster_Resample/LC09_132048_20250317_Com753.TIF
 =======
 >>>>>>> ca6f367829b68f214ac715d99f599c7d9d6c154e
 >>>>>>> 53b5e457cc20920e1ca71423c34465b3a089e263
+sentinel_processing.log
+Clipped_Rasters/ตาก/clipped_ตาก_T47QMV_20250217T034851.tif
+Clipped_Rasters/ลำปาง/clipped_ลำปาง_T47QMV_20250217T034851.tif
+Clipped_Rasters/ลำพูน/clipped_ลำพูน_T47QMV_20250217T034851.tif
+Clipped_Rasters/เชียงใหม่/clipped_เชียงใหม่_T47QMV_20250217T034851.tif
+Clipped_Rasters/แม่ฮ่องสอน/clipped_แม่ฮ่องสอน_T47QMV_20250217T034851.tif
+LANDSAT_9/LC09_L1TP_129049_20250312_20250312_02_T1.tif
+LANDSAT_9/LC09_L1TP_129049_20250328_20250328_02_T1.tif
+LANDSAT_9/LC09_L1TP_130047_20250303_20250303_02_T1.tif
+LANDSAT_9/LC09_L1TP_131046_20250326_20250326_02_T1_Com754.tif
+LANDSAT_9/LC09_L1TP_131047_20250326_20250326_02_T1.tif
+LANDSAT_9/LC09_L1TP_131048_20250326_20250326_02_T1_Com754.tif
+Polygonized_Rasters/ตาก/polygon_ตาก_T47QMV_20250217T034851.dbf
+Polygonized_Rasters/ตาก/polygon_ตาก_T47QMV_20250217T034851.prj
+Polygonized_Rasters/ตาก/polygon_ตาก_T47QMV_20250217T034851.shp
+Polygonized_Rasters/ตาก/polygon_ตาก_T47QMV_20250217T034851.shx
+Polygonized_Rasters/ลำปาง/polygon_ลำปาง_T47QMV_20250217T034851.dbf
+Polygonized_Rasters/ลำปาง/polygon_ลำปาง_T47QMV_20250217T034851.prj
+Polygonized_Rasters/ลำปาง/polygon_ลำปาง_T47QMV_20250217T034851.shp
+Polygonized_Rasters/ลำปาง/polygon_ลำปาง_T47QMV_20250217T034851.shx
+Polygonized_Rasters/ลำพูน/polygon_ลำพูน_T47QMV_20250217T034851.dbf
+Polygonized_Rasters/ลำพูน/polygon_ลำพูน_T47QMV_20250217T034851.prj
+Polygonized_Rasters/ลำพูน/polygon_ลำพูน_T47QMV_20250217T034851.shp
+Polygonized_Rasters/ลำพูน/polygon_ลำพูน_T47QMV_20250217T034851.shx
+Polygonized_Rasters/เชียงใหม่/polygon_เชียงใหม่_T47QMV_20250217T034851.dbf
+Polygonized_Rasters/เชียงใหม่/polygon_เชียงใหม่_T47QMV_20250217T034851.prj
+Polygonized_Rasters/เชียงใหม่/polygon_เชียงใหม่_T47QMV_20250217T034851.shp
+Polygonized_Rasters/เชียงใหม่/polygon_เชียงใหม่_T47QMV_20250217T034851.shx
+Polygonized_Rasters/แม่ฮ่องสอน/polygon_แม่ฮ่องสอน_T47QMV_20250217T034851.dbf
+Polygonized_Rasters/แม่ฮ่องสอน/polygon_แม่ฮ่องสอน_T47QMV_20250217T034851.prj
+Polygonized_Rasters/แม่ฮ่องสอน/polygon_แม่ฮ่องสอน_T47QMV_20250217T034851.shp
+Polygonized_Rasters/แม่ฮ่องสอน/polygon_แม่ฮ่องสอน_T47QMV_20250217T034851.shx
+SCL_Classified/T47QMV_20250217T034851/T47QMV_20250217T034851_SCL.tif
+Sentinel-2/T47QMV_20250217T034851.tif
+Thailand/Thailand - Subnational Administrative Boundaries.cpg
+Thailand/Thailand - Subnational Administrative Boundaries.dbf
+Thailand/Thailand - Subnational Administrative Boundaries.prj
+Thailand/Thailand - Subnational Administrative Boundaries.qix
+Thailand/Thailand - Subnational Administrative Boundaries.qmd
+Thailand/Thailand - Subnational Administrative Boundaries.shp
+Thailand/Thailand - Subnational Administrative Boundaries.shx
+Thailand/Thailand_Administrative_Boundary.cpg
+Thailand/Thailand_Administrative_Boundary.dbf
+Thailand/Thailand_Administrative_Boundary.prj
+Thailand/Thailand_Administrative_Boundary.qmd
+Thailand/Thailand_Administrative_Boundary.shp
+Thailand/Thailand_Administrative_Boundary.shx
