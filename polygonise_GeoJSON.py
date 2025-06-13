@@ -65,8 +65,8 @@ def polygonize_clipped_raster(clipped_raster_path, output_polygon_path, nodata_f
             os.makedirs(current_output_sub_dir, exist_ok=True)
             
             # Construct the output polygon file paths
-            output_filename_base = os.path.splitext(base_name)[0] + '.shp'
-            current_output_shapefile_path = os.path.join(current_output_sub_dir, output_filename_base + '.shp')
+            output_filename_base = os.path.splitext(base_name)[0]
+            current_output_shapefile_path = os.path.join(current_output_sub_dir, output_filename_base)
 
             if geojson_output_dir:
                 current_geojson_output_sub_dir = os.path.join(geojson_output_dir, relative_dir_structure)
