@@ -18,7 +18,8 @@ def clip_rasters_by_subdistrict_hierarchy(
     folder_path, shapefile_path,
     province_attr, district_attr, subdistrict_attr,
     output_dir, # Directory to save clipped rasters
-    clip_level_attr: str, # New parameter to specify the clipping level attribute
+    clip_level_attr: str, # Attribute to group features for clipping
+    filename_structure_level_attr: str, # Attribute defining filename hierarchy depth
     use_district_for_path: bool = True,
     use_subdistrict_for_path: bool = True):
 
@@ -34,8 +35,8 @@ def clip_rasters_by_subdistrict_hierarchy(
         district_attr (str): The attribute name for the district in the shapefile.
         subdistrict_attr (str): The attribute name for the subdistrict in the shapefile.
         output_dir (str): The directory where the clipped rasters will be saved.
-        clip_level_attr (str): The attribute name ('PV_TN', 'AP_TN', or 'TB_TN') to use for the primary clipping unit.
-        polygon_dir (str): The directory where the polygonized clipped rasters will be saved.
+        clip_level_attr (str): The attribute name in the shapefile to use for grouping clipping geometries.
+        filename_structure_level_attr (str): The attribute ('PV_TN', 'AP_TN', or 'TB_TN') that defines the hierarchical level for output filenames.
         use_district_for_path (bool): Whether to include district in the output path hierarchy.
         use_subdistrict_for_path (bool): Whether to include subdistrict in the output path hierarchy.
 
@@ -46,13 +47,21 @@ def clip_rasters_by_subdistrict_hierarchy(
 
     gdf = gpd.read_file(shapefile_path) # Read the shapefile into a GeoDataFrame
 
-    for attr in [province_attr, district_attr, subdistrict_attr]: # Check if the required attributes are present in the GeoDataFrame
-        if attr not in gdf.columns: # Check if the required attributes are present in the GeoDataFrame
-            logging.error(f"Attribute '{attr}' not found in shapefile.")
+    # Check if hierarchical attributes are present
+    for attr_name, attr_val in [("province_attr", province_attr), ("district_attr", district_attr), ("subdistrict_attr", subdistrict_attr)]:
+        if attr_val not in gdf.columns:
+            logging.error(f"Hierarchical attribute '{attr_val}' (for {attr_name}) not found in shapefile.")
             return
 
-    if clip_level_attr not in [province_attr, district_attr, subdistrict_attr]: # Validate clip_level_attr
-        logging.error(f"Invalid clip_level_attr '{clip_level_attr}'. Must be one of '{province_attr}', '{district_attr}', or '{subdistrict_attr}'.")
+    # Validate clip_level_attr (attribute used for grouping geometries)
+    if clip_level_attr not in gdf.columns:
+        logging.error(f"Clipping attribute '{clip_level_attr}' not found in shapefile.")
+        return
+
+    # Validate filename_structure_level_attr (attribute defining filename hierarchy)
+    valid_filename_levels = [province_attr, district_attr, subdistrict_attr]
+    if filename_structure_level_attr not in valid_filename_levels:
+        logging.error(f"Invalid filename_structure_level_attr '{filename_structure_level_attr}'. Must be one of {valid_filename_levels}.")
         return
 
     # The following line is kept for informational logging but not directly used for iteration if clip_level_attr is different
@@ -132,8 +141,26 @@ def clip_rasters_by_subdistrict_hierarchy(
 
                 geom_json = [geom.__geo_interface__ for geom in filtered_gdf.geometry] # Convert geometries to GeoJSON format
 
-                # Filename includes the clip unit name and the raster name for uniqueness
-                unique_file_identifier = f"{clip_unit_clean_fn}_{raster_basename_no_ext}"
+                # --- Construct unique file identifier based on hierarchy up to clip_level_attr ---
+                # province_clean_fn, district_clean_fn, subdistrict_clean_fn are already
+                # defined based on filtered_gdf.iloc[0] and represent the hierarchy for the current clip unit.
+                
+                name_components_for_filename = []
+                # Use filename_structure_level_attr to determine the depth of naming
+                if filename_structure_level_attr == province_attr:
+                    name_components_for_filename.append(province_clean_fn)
+                elif filename_structure_level_attr == district_attr:
+                    name_components_for_filename.append(province_clean_fn)
+                    name_components_for_filename.append(district_clean_fn)
+                elif filename_structure_level_attr == subdistrict_attr:
+                    name_components_for_filename.append(province_clean_fn)
+                    name_components_for_filename.append(district_clean_fn)
+                    name_components_for_filename.append(subdistrict_clean_fn)
+                # This logic now correctly uses filename_structure_level_attr
+                # and relies on its prior validation.
+
+                file_id_prefix = "_".join(name_components_for_filename)
+                unique_file_identifier = f"{file_id_prefix}_{raster_basename_no_ext}"
                 
                 with rasterio.Env(GDAL_CACHEMAX=512): # Set GDAL cache size to 512 MB for better performance
                     with rasterio.open(raster_path) as src:
@@ -191,15 +218,16 @@ def clip_rasters_by_subdistrict_hierarchy(
 
 def main():
     clip_rasters_by_subdistrict_hierarchy(
-        folder_path="LANDSAT_9/", # Path to the folder containing raster files
-        shapefile_path="Thailand/Thailand - Subnational Administrative Boundaries.shp", # Path to the shapefile with subdistrict boundaries
+        folder_path=r'LANDSAT_9', # Path to the folder containing raster files
+        shapefile_path=r'Thailand\L05_Tambon_ESRI_2559.shp', 
         province_attr="PV_TN", # Attribute for province in the shapefile
         district_attr="AP_TN", # Attribute for district in the shapefile
         subdistrict_attr="TB_TN", # Attribute for subdistrict in the shapefile
         output_dir="Clipped_Rasters", # Directory to save clipped rasters
-        
-        clip_level_attr="PV_TN",  # Attribute to use for clipping level (can be 'PV_TN', 'AP_TN', or 'TB_TN')
-        
+
+        clip_level_attr="TB_IDN",  # Actual attribute to use for grouping clipping units
+        filename_structure_level_attr="TB_TN", # Defines filename detail based on hierarchy (must be PV_TN, AP_TN, or TB_TN)
+
         use_district_for_path=False, # Whether to include district in the output path hierarchy
         use_subdistrict_for_path=False # Whether to include subdistrict in the output path hierarchy
     )
