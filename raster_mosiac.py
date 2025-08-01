@@ -80,7 +80,7 @@ def build_overviews(filepath, overview_levels=[2, 4, 8, 16, 32], resampling_meth
 
 def main():
     # Configure input and output directories/paths
-    root_dir = r'LANDSAT_9' # This is now the parent directory containing subfolders
+    root_dir = r'path/to/your/folder' # This is now the parent directory containing subfolders
 
     output_dir = r'Raster_Mosaic'
 
